@@ -14,6 +14,8 @@
     "GitHub Action"
   ],
   "dependencies": {
+    "cache-manager": "^4.0.1",
+    "cache-manager-sqlite": "^0.2.0",
     "sqlite3": "^5.1.6",
     "trash": "^8.1.1"
   }

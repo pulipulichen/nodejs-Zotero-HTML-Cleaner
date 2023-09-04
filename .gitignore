@@ -3,3 +3,4 @@
 # /cache
 /errors.txt
 /node_modules/
+/node-cache-sqlite_*.sqlite

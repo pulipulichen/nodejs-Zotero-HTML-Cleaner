@@ -4,16 +4,72 @@ const ShellSpawn = require('./ShellSpawn.js')
 
 let basePath = `/mnt/microsd/ext4/zotero/storage/`
 
+const NodeCacheSqlite = require('./NodeCacheSqlite.js')
+
 let processFiles = async function (item) {
   let {filename, url, key} = item
 
-  let targetFilenameTemp = path.join('/mnt/microsd/ext4/trash/202309/zotero/', filename)
+  if (await NodeCacheSqlite.isExists('error', key)) {
+    console.log(`${key} is error. skiped`)
+    return false
+  }
+
+  if (url.startsWith(`http://0-link.springer.com.jenda.lib.nccu.edu.tw/`)) {
+    await NodeCacheSqlite.get('error', key, () => {
+      return {
+        url: 'file://' + destinationFilename,
+        originalURL: url,
+        targetFilenameTemp
+      }
+    })
+    return false
+  }
+
+  let targetFilenameTemp = path.join('/mnt/microsd/ext4/trash/202309/zotero/', encodeURIComponent(filename))
   
   
   // await ShellSpawn([path.join(__dirname, 'singlefile.sh'), url, targetFilenameTemp])
   let sourceDirectory = path.join(basePath, key)
   let destinationFilename = path.join(sourceDirectory, filename)
-  await ShellSpawn([path.join(__dirname, 'singlefile.sh'), 'file://' + destinationFilename, targetFilenameTemp])
+
+  console.log({
+    time: (new Date()).toISOString(),
+    key,
+    url: 'file://' + destinationFilename,
+    originalURL: url,
+    targetFilenameTemp
+  })
+
+  await NodeCacheSqlite.get('log', key, () => {
+    return {
+      url: 'file://' + destinationFilename,
+      originalURL: url,
+      targetFilenameTemp
+    }
+  })
+
+  try {
+    await ShellSpawn([path.join(__dirname, 'singlefile.sh'), '"file://' + destinationFilename + '"', '"' + targetFilenameTemp + '"'])
+  }
+  catch (e) {
+    console.error(e)
+    try {
+      await ShellSpawn([path.join(__dirname, 'singlefile.sh'), '"' + url + '"', '"' + targetFilenameTemp + '"'])
+    }
+    catch (e) {
+      console.error(e) 
+
+      await NodeCacheSqlite.get('error', key, () => {
+        return {
+          url: 'file://' + destinationFilename,
+          originalURL: url,
+          targetFilenameTemp
+        }
+      })
+      return false
+    }
+      
+  }
 
   // ----------------------------------------------------------------
 
@@ -52,7 +108,12 @@ let processFiles = async function (item) {
   // await trash(destinationDirectory)
   // await ShellSpawn(['trash', destinationDirectory])
   const destinationFileTrashPath = path.join('/mnt/microsd/ext4/trash/202309/zotero/', `${key}_tmp`);
-  fs.renameSync(destinationDirectory, destinationFileTrashPath)
+  if (fs.existsSync(destinationFileTrashPath) === false) {
+    fs.renameSync(destinationDirectory, destinationFileTrashPath)
+  }
+  else {
+    await ShellSpawn(['rm', '-rf', destinationDirectory])
+  }
 }
 
 module.exports = processFiles
